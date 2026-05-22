@@ -2,7 +2,11 @@ ply/
 ply-3.1/
 .idea/
 __pycache__/
-get-pip.py
+*.py[cod]
+*$py.class
 parselog.txt
 parsetab.py
+parser.out
+.DS_Store
+get-pip.py
 willy.pdf
