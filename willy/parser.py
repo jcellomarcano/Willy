@@ -1,78 +1,43 @@
 #!/usr/bin/env python3
 from typing import Any
-import os, sys
-import lexer
-import ply.yacc as yacc
-import logging
-from myStack import myStack
-from Node import *
-from World import *
-from Task import *
-from ModelProcedure import *
+import sys
 import copy
+from willy import lexer
+import ply.yacc as yacc
+from willy.stack import Stack
+from willy.node import Node
+from willy.world import World
+from willy.task import Task
+from willy.model_procedure import ModelProcedure
 
 """
-    Analizador Semantico y sintactico + (Interpretador) De Willy*
-    Primera fase del proyecto
-    Traductores e Interpretadores (CI-3725)
-    Maria Fernanda Magallanes (13-10787)
-    Jesus Marcano (12-10359)
-    E-M 2020
-
-    Dentro de myparser, encontramos todos lo metodos que son encargados de desarrollar las producciones,
-    estos de la forma: p_nombreFuncion
-    dentro de ellos se hace split de los tokens recibidos para poder armar los distintos nodos que generaran el 
-    arbol de lectura de nuestro parser. 
-    
-    En la primera seccion tenemos todas las definicones del World
-    
-    En la segunda seccion tenemos todas las definicios del Task
-    
-    En la tercera definicion tenemos los manejos de errores semanticos y sintaticos de Willy
-    
-    
-    Aqui se componen las validaciones de la correcta escritura de las frases de ejecucion, 
-    del orden que debe llevar cada una de las instrucciones, sobre si tenemos elementos repetidos dentro
-    de un mismo conexto(scope) para poder hacer buenas definiciones de nuestras variabe y desaparecer ambiguedades. 
-    
-    En caso de error se colecta la linea, el token escrito y se le señala al usuario estos componentes a donde deberia corregir el script
+    Semantic and Syntactic Analyzer (Parser & Interpreter) for Willy*
 """
 
-DEBUG_MODE = True
-# parser: Any = yacc.parse(lexer)
-# logging.basicConfig(
-#         level = logging.DEBUG,
-#         filename = "parselog.txt",
-#         filemode = "w",
-#         format = "%(filename)10s:%(lineno)4d:%(message)s"
-#     )
-
+# Precedence rules to avoid dangling else ambiguity
 precedence = (
     ('left', 'TkThen'),
     ('left', 'TkAnd', 'TkOr', 'TkElse'),
-    ('right', 'TkNot', 'TkBegin'),  # Unary minus operator
+    ('right', 'TkNot', 'TkBegin'),
 )
 
-# import some required globals from tokenizer
+# Required globals from lexer
 tokens = lexer.tokens
 ParserErrors = []
 
 procedures = ModelProcedure()
-
-newWorld = Any
-
-stack = myStack()
+newWorld = None
+stack = Stack()
 stack.push_empty_table()
 
-programBlock = []
-createdWorlds = []
-objectsInWorlds = []
+programBlock = {}    # Optimization: O(1) dictionary mapping block name to its metadata
+createdWorlds = {}   # Optimization: O(1) dictionary mapping world ID to World instance
 booleansOfWorlds = []
 tasks = []
 
 howManyTask = 0
-activeWorld = Any
-currentTask = Any
+activeWorld = None
+currentTask = None
 
 worldInstBool = False
 taskBool = False
@@ -83,12 +48,9 @@ isBasketDeclared = False
 firstDefineOnTask = False
 blockNumber = 0
 
-
 def p_correctProgram(p):
     "correctProgram : program"
-
     p[0] = p[1]
-
 
 def p_program(p):
     """
@@ -97,33 +59,21 @@ def p_program(p):
             | worldBlock program
             | taskBlock program
     """
-    global hasSetted
-    hasSetted
     if len(p) == 2:
         p[0] = Node("Program Block:", [p[1]])
     else:
         p[0] = Node("Program Block:", [p[1], p[2]])
 
-    r = programBlock[0][1]["type"]
-
-
 def p_worldInstSet(p):
     """worldInstSet : worldInst worldInstSet
                     | worldInst
-
     """
-    global worldInstBool
-
-    if (worldInstBool):
-        worldInstBool = False
     if len(p) == 4:
         p[0] = Node("WorldInstancia:", [p[1], p[3]])
-
     elif len(p) == 2:
         p[0] = Node("WorldInstancia:", [p[1]])
     else:
         p[0] = Node("WorldInstancia:", [p[1], p[2]])
-
 
 def p_worldInst(p):
     """ worldInst : worldSet
@@ -138,32 +88,29 @@ def p_worldInst(p):
     """
     p[0] = Node("WorldInstructions", [p[1]])
 
-
 def p_wallSet(p):
     """wallSet : TkWall directions TkFrom TkNum TkNum TkTo TkNum TkNum"""
     global newWorld
     actualDir = p[2]
 
     if actualDir == "north":
-
         if p[4] == p[7] and p[5] <= p[8]:
             p[0] = Node("WallSet:", [p[2]])
             newWorld.setWall([p[4], p[5]], [p[7], p[8]], actualDir)
         else:
             data_error = {
-                "type": "Bad definition of " + actualDir + "Dimentions",
+                "type": "Bad definition of north dimensions",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
             errorSemantic(data_error)
     elif actualDir == "south":
-
         if p[4] == p[7] and p[5] >= p[8]:
             p[0] = Node("WallSet:", [p[2]])
             newWorld.setWall([p[4], p[5]], [p[7], p[8]], actualDir)
         else:
             data_error = {
-                "type": "Bad definition of" + actualDir + "Dimentions",
+                "type": "Bad definition of south dimensions",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
@@ -174,7 +121,7 @@ def p_wallSet(p):
             newWorld.setWall([p[4], p[5]], [p[7], p[8]], actualDir)
         else:
             data_error = {
-                "type": "Bad definition of " + actualDir + "Dimentions",
+                "type": "Bad definition of west dimensions",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
@@ -185,82 +132,72 @@ def p_wallSet(p):
             newWorld.setWall([p[4], p[5]], [p[7], p[8]], actualDir)
         else:
             data_error = {
-                "type": "Bad definition of " + actualDir + "Dimentions",
+                "type": "Bad definition of east dimensions",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
             errorSemantic(data_error)
     else:
         data_error = {
-            "type": "Bad token of Direcction" + actualDir,
+            "type": "Bad direction token: " + actualDir,
             "line": p.lineno(2),
             "column": p.lexpos(2) + 1,
         }
-
-        errorSemantic(None)
-
+        errorSemantic(data_error)
 
 def p_worldDefinition(p):
     """
     worldDefinition : TkBeginWorld ids
     """
-    type = {
+    metadata = {
         "type": "World"
     }
     global newWorld
-
     p[0] = Node("", [p[2]])
-    data = [p[0].children[0], type]
     newWorld = World(p[2])
     newWorld.setDimension([1, 1])
-    programBlock.append(data)
-
+    programBlock[p[2]] = metadata
+    stack.push({})
 
 def p_worldBlock(p):
     """worldBlock : worldDefinition worldInstSet TkEndWorld
                   | worldDefinition TkEndWorld
     """
-    id = p[1].children[0]
+    id_world = p[1].children[0]
     global blockNumber
     global validateFinalGoal
     global createdWorlds
+    
     attributesObjects = {
         "type": "World",
         "line": p.lineno(2),
         "column": p.lexpos(2) + 1,
     }
-    dataFlag = {
-        "ownerPrev": id,
-        "WorldClass": "Aqui estara la clase del mundo"
-    }
+
     if len(p) == 4:
         p[0] = Node("WorldBlock", [p[2]])
     else:
         p[0] = Node("WorldBlock", [p[2]])
 
-    if blockNumber == 0:
-        blockNumber = blockNumber + 1
-    else:
-        blockNumber = blockNumber + 1
+    blockNumber += 1
     validateFinalGoal = False
 
     if len(stack.stack) > 1:
         stack.pop()
-    stack.insert(id, attributesObjects)
-    createdWorlds.append(newWorld)
+    stack.insert(id_world, attributesObjects)
+    createdWorlds[newWorld.id] = newWorld
+    
     global hasSetted
     hasSetted = False
 
     print("###############")
-    print("Estado inicial de " + str(newWorld.id))
-    print("La posición de Willy es: " + str(newWorld.getWillyPosition()[0]) + " mirando hacia el " + str(
-        newWorld.getWillyPosition()[1]))
-    print("Lo que tiene en el basket es:\n", newWorld.getObjectsInBasket())
-    print("El estado de los bools es:\n", newWorld.getBools())
-    print("El final goal es:\n" + newWorld.getFinalGoal())
-    print("El valor del final goal es: ", newWorld.getValueFinalGoal())
+    print("Initial state of " + str(newWorld.id))
+    print("Willy Position: " + str(newWorld.getWillyPosition()[0]) + " looking " + str(newWorld.getWillyPosition()[1]))
+    print("Basket contents:\n", newWorld.getObjectsInBasket())
+    print("Bools state:\n", newWorld.getBools())
+    print("Final Goal:\n" + newWorld.getFinalGoal())
+    print("Final Goal Value: ", newWorld.getValueFinalGoal())
     print(newWorld)
-
 
 def p_worldSet(p):
     """worldSet : TkWorld TkNum TkNum
@@ -268,44 +205,41 @@ def p_worldSet(p):
     global newWorld
     global hasSetted
     if not hasSetted:
-        if 0 != p[2] or (0 != p[3]):
-            if len(p) == 4:
+        if len(p) == 4:
+            if p[2] != 0 or p[3] != 0:
                 p[0] = Node("WorldSet", [])
                 newWorld.setDimension([p[2], p[3]])
             else:
-                newWorld.setDimension([1, 1])
-                p[0] = p[1]
+                data_error = {
+                    "type": "0 dimension of World is invalid",
+                    "line": p.lineno(2),
+                    "column": p.lexpos(2) + 1,
+                }
+                errorSemantic(data_error)
         else:
-            data_error = {
-                "type": "0 dimention of World",
-                "line": p.lineno(2),
-                "column": p.lexpos(2) + 1,
-            }
-            errorSemantic(data_error)
+            newWorld.setDimension([1, 1])
+            p[0] = p[1]
     else:
         data_error = {
-            "type": (
-                        "To place objects in World:" + newWorld.id + "need to declare dimentions at start" + "\n" + "Can't replace dimentions"),
+            "type": f"To place objects in World: {newWorld.id} need to declare dimensions at start. Cannot replace dimensions.",
             "line": p.lineno(2),
             "column": p.lexpos(2) + 1,
         }
         errorSemantic(data_error)
-
 
 def p_newObjType(p):
     """newObjType : TkObjType ids TkOf TkColor colors"""
-    global worldInstBool
     global newWorld
-    id = p[2]
+    id_obj = p[2]
 
-    if procedures.findObj(id, programBlock):
+    # O(1) existence check in program blocks dictionary
+    if id_obj in programBlock:
         data_error = {
-            "type": "Objeto " + id + " contiene nombre de un World o Task",
+            "type": f"Object '{id_obj}' has name of an existing World or Task",
             "line": p.lineno(2),
             "column": p.lexpos(2) + 1,
         }
         errorSemantic(data_error)
-
     else:
         p[0] = Node("NewObjectType", [p[2], p[5]])
         attributesObjects = {
@@ -314,28 +248,19 @@ def p_newObjType(p):
             "column": p.lexpos(2) + 1,
             "color": p[5],
         }
-        if worldInstBool:
-            stack.insert(p[2], attributesObjects)
-
-        else:
-            table = []
-            stack.push(table)
-            stack.insert(p[2], attributesObjects)
-            worldInstBool = True
-        newWorld.setObjects(id, attributesObjects["color"])
-
+        stack.insert(p[2], attributesObjects)
+        newWorld.setObjects(id_obj, attributesObjects["color"])
 
 def p_colors(p):
     """colors : TkRed
-                | TkBlue
-                | TkMagenta
-                | TkCyan
-                | TkGreen
-                | TkYellow
+              | TkBlue
+              | TkMagenta
+              | TkCyan
+              | TkGreen
+              | TkYellow
     """
     p[0] = p[1]
     p.set_lineno(0, p.lineno(1))
-
 
 def p_setPlaceObjWorld(p):
     """setPlaceObjWorld : TkPlace TkNum TkOf ids TkAt TkNum TkNum
@@ -345,45 +270,39 @@ def p_setPlaceObjWorld(p):
     global hasSetted
     global isBasketDeclared
     hasSetted = True
-    id = p[4]
-    #
-    #
+    id_obj = p[4]
     amount = p[2]
+    
     if p[2] != 0:
         if len(p) == 8:
-            if (p[6] or p[7]) > 0:
+            if p[6] > 0 or p[7] > 0:
                 p[0] = Node("PlaceObjWorld", [p[4]])
-                newWorld.setObjectInWorld(id, amount, [p[6], p[7]])
-                # TODO : Falta validar la posicion en el mundo con respecto a las posiciones del mundo
+                newWorld.setObjectInWorld(id_obj, amount, [p[6], p[7]])
             else:
                 data_error = {
-                    "type": "Posicion nula del mundo en a la hora de colocar objetos",
+                    "type": "Invalid null position when placing objects",
                     "line": p.lineno(2),
                     "column": p.lexpos(2) + 1,
-                    "color": p[5],
                 }
                 errorSemantic(data_error)
         else:
             if isBasketDeclared:
-                newWorld.setObjectsInBasket(id, amount)
+                newWorld.setObjectsInBasket(id_obj, amount)
                 p[0] = Node("PlaceObjWorld", [p[4]])
             else:
                 data_error = {
-                    "type": "No puede colocar elementos en un Basket sin capacidad" + str(id),
+                    "type": f"Cannot place elements in a Basket without capacity: {id_obj}",
                     "line": p.lineno(2),
                     "column": p.lexpos(2) + 1,
-                    "objeto": id,
                 }
                 errorSemantic(data_error)
     else:
         data_error = {
-            "type": "No puede colocar 0 objetos",
+            "type": "Cannot place 0 objects",
             "line": p.lineno(2),
             "column": p.lexpos(2) + 1,
-            "color": p[5],
         }
         errorSemantic(data_error)
-
 
 def p_setStartPosition(p):
     """setStartPosition : TkStart TkAt TkNum TkNum TkHeading directions """
@@ -391,20 +310,18 @@ def p_setStartPosition(p):
     global hasSetted
     hasSetted = True
 
-    if (p[3] or p[4]) <= 0:
+    if p[3] <= 0 or p[4] <= 0:
         data_error = {
-            "type": "Start posicion en 0 no es valido",
+            "type": "Start position (0 or negative) is not valid",
             "line": p.lineno(2),
             "column": p.lexpos(2) + 1,
         }
         errorSemantic(data_error)
     else:
-        # Verificar las dimensiones del mundo
         dimen = newWorld.getDimension()
-
-        if (p[3] > dimen[0]) or (p[4] > dimen[1]):
+        if p[3] > dimen[0] or p[4] > dimen[1]:
             data_error = {
-                "type": "Willy is out of world",
+                "type": "Willy is out of world bounds",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
@@ -413,14 +330,13 @@ def p_setStartPosition(p):
             newWorld.setWillyStart([p[3], p[4]], p[6])
             p[0] = Node("WillyStartPosition", [p[6]])
 
-
 def p_setBasketCapacity(p):
     """setBasketCapacity : TkBasket TkOf TkCapacity TkNum """
     global newWorld
     global isBasketDeclared
     if p[4] == 0:
         data_error = {
-            "type": "No permitido " + p[4] + " capacidad de Basket",
+            "type": "Basket capacity of 0 is not allowed",
             "line": p.lineno(2),
             "column": p.lexpos(2) + 1,
         }
@@ -430,14 +346,12 @@ def p_setBasketCapacity(p):
         newWorld.setCapacityOfBasket(p[4])
         p[0] = Node("BasketCapacity", [])
 
-
 def p_newBoolean(p):
     """newBoolean : TkBoolean ids TkWith TkInitial TkValue TkTrue
                   | TkBoolean ids TkWith TkInitial TkValue TkFalse
     """
     global newWorld
     p[0] = Node("NewBoolean", [p[2]])
-    global worldInstBool
     auxVal = False
 
     if p[6] == "true":
@@ -451,17 +365,10 @@ def p_newBoolean(p):
         "column": p.lexpos(2) + 1,
         "value": auxVal,
     }
-    if worldInstBool:
-        stack.insert(p[2], attributesObjects)
-    else:
-        table = []
-        stack.push(table)
-        stack.insert(p[2], attributesObjects)
-        worldInstBool = True
+    stack.insert(p[2], attributesObjects)
     newWorld.setBool(p[2], auxVal)
     global booleansOfWorlds
     booleansOfWorlds.append([p[2], attributesObjects])
-
 
 def p_newGoal(p):
     """newGoal : TkGoal ids TkIs TkWilly TkIs TkAt TkNum TkNum
@@ -469,7 +376,6 @@ def p_newGoal(p):
             | TkGoal ids TkIs TkNum ids TkObjectsLower TkAt TkNum TkNum
     """
     global newWorld
-    global worldInstBool
     if len(p) == 9:
         if p[4] == "willy":
             p[0] = Node("NewGoal", [p[2]])
@@ -502,23 +408,16 @@ def p_newGoal(p):
             "column_": p[8],
             "row": p[9]
         }
-
         newWorld.setGoals(p[2], attributesObjects["type"], p[5], p[4], [p[8], p[9]])
-    if worldInstBool:
-        stack.insert(p[2], attributesObjects)
-    else:
-        table = []
-        stack.push(table)
-        stack.insert(p[2], attributesObjects)
-        worldInstBool = True
-
+        
+    stack.insert(p[2], attributesObjects)
 
 def p_finalGoal(p):
     """finalGoal : TkFinalG TkIs finalGoalTest """
     global validateFinalGoal
     if validateFinalGoal:
         data_error = {
-            "type": "Only one final goal",
+            "type": "Only one final goal is allowed",
             "line": p.lineno(2),
             "column": p.lexpos(2) + 1,
         }
@@ -529,45 +428,41 @@ def p_finalGoal(p):
         validateFinalGoal = True
         newWorld.setFinalGoal(p[3], ret)
 
-
 def p_finalGoalTest(p):
     """finalGoalTest : TkParenL finalGoalTest TkParenR
-                     | negacionGoal
-                     | conjuncionGoal
-                     | disyuncionGoal
+                     | negationGoal
+                     | conjunctionGoal
+                     | disjunctionGoal
                      | ids
     """
     if len(p) == 2:
         p[0] = Node("FinalGoal", [p[1]])
     else:
-        p[0] = Node("Parentesis", [p[2]])
+        p[0] = Node("Parenthesis", [p[2]])
 
+def p_disjunctionGoal(p):
+    """disjunctionGoal : finalGoalTest TkOr finalGoalTest"""
+    p[0] = Node("Disjunction", [p[1], p[3]])
 
-def p_disyuncionGoal(p):
-    """disyuncionGoal : finalGoalTest TkOr finalGoalTest"""
-    p[0] = Node("Disyuncion", [p[1], p[3]])
+def p_conjunctionGoal(p):
+    """conjunctionGoal : finalGoalTest TkAnd finalGoalTest"""
+    p[0] = Node("Conjunction", [p[1], p[3]])
 
-
-def p_conjuncionGoal(p):
-    """conjuncionGoal : finalGoalTest TkAnd finalGoalTest"""
-    p[0] = Node("Conjuncion", [p[1], p[3]])
-
-
-def p_negacionGoal(p):
-    """negacionGoal : TkNot finalGoalTest"""
-    p[0] = Node("Not", [p[2]])
-
+def p_negationGoal(p):
+    """negationGoal : TkNot finalGoalTest"""
+    # Optimization: Double Negation Elimination
+    if p[2].type == "Not":
+        p[0] = p[2].children[0]
+    else:
+        p[0] = Node("Not", [p[2]])
 
 def p_ids(p):
     "ids : TkId"
     p[0] = p[1]
     p.set_lineno(0, p.lineno(1))
 
-
 def p_taskBlock(p):
     """taskBlock : taskDefinition multiInstructions TkEndTask"""
-    global taskBoolz
-    global createdWorlds
     global currentTask
 
     attributesObjects = {
@@ -579,69 +474,64 @@ def p_taskBlock(p):
     p[0] = Node("Task", [p[1], p[2]])
 
     if len(stack.stack) > 1:
-        global firstDefineOnTask
-        firstDefineOnTask = False
         stack.pop()
     stack.insert(p[1].children[0], attributesObjects)
-    print("INICIA LA EJECUCION DEL TASK")
-    p[0].executeMyTask(currentTask)
-    print("###############")
-    print("Estado final de " + str(currentTask.world.id) + " luego de haber ejecutado " + str(currentTask.id))
-    print("La posición de Willy es: " + str(currentTask.world.getWillyPosition()[0]) + " mirando hacia el " + str(
-        currentTask.world.getWillyPosition()[1]))
-    print("Lo que tiene en el basket es:\n", currentTask.world.getObjectsInBasket())
-    print("El estado de los bools es:\n", currentTask.world.getBools())
-    print("El final goal es:\n" + currentTask.world.getFinalGoal())
-    print("El valor del final goal es: ", currentTask.world.getValueFinalGoal())
-    print(currentTask.world)
+    
+    # Run the task directly if we are in normal CLI execution mode
+    # (Dashboard menu handles running explicitly)
+    if Task.time != "dashboard":
+        print("STARTING TASK EXECUTION")
+        p[0].executeMyTask(currentTask)
+        print("###############")
+        print(f"Final state of world '{currentTask.world.id}' after executing task '{currentTask.id}':")
+        print(f"Willy Position: {currentTask.world.getWillyPosition()[0]} looking {currentTask.world.getWillyPosition()[1]}")
+        print("Basket contents:\n", currentTask.world.getObjectsInBasket())
+        print("Bools state:\n", currentTask.world.getBools())
+        print("Final Goal:\n" + currentTask.world.getFinalGoal())
+        print("Final Goal Value: ", currentTask.world.getValueFinalGoal())
+        print(currentTask.world)
     currentTask.fin = False
-
-
 
 def p_taskDefinition(p):
     """
     taskDefinition : TkBeginTask ids TkOn ids
     """
     global activeWorld
-    global programBlock
     global currentTask
     global howManyTask
-    howManyTask = howManyTask + 1
+    howManyTask += 1
 
-    if procedures.find(p[4], createdWorlds) is not None:
-
-        activeWorld = procedures.find(p[4], createdWorlds)
+    # O(1) lookup of world in createdWorlds dictionary
+    if p[4] in createdWorlds:
+        activeWorld = createdWorlds[p[4]]
         newInstanceWorld = copy.deepcopy(activeWorld)
 
-        type = {
+        metadata = {
             "type": "Task"
         }
         p[0] = Node("", [p[2], p[1]])
-        data = [p[0].children[0], type]
+        programBlock[p[2]] = metadata
 
         currentTask = Task(p[2], newInstanceWorld)
-        programBlock.append(data)
-
+        tasks.append(currentTask)
+        stack.push({})
     else:
         data_error = {
-            "type": "Invalid name of World: " + p[2] + " in " + p[4],
+            "type": f"Invalid name of World: '{p[4]}' for task '{p[2]}'",
             "line": p.lineno(2),
             "column": p.lexpos(2) + 1,
         }
         errorSemantic(data_error)
-
 
 def p_multiInstructions(p):
     """multiInstructions : instructions
                          | empty
                          | instructions TkSemicolon multiInstructions
     """
-
     if len(p) == 2:
         p[0] = Node("MultiInstruction", [p[1]])
     else:
         p[0] = Node("MultiInstruction", [p[1], p[3]])
-
 
 def p_primitiveInstructions(p):
     """primitiveInstructions : TkMove
@@ -663,21 +553,14 @@ def p_primitiveInstructions(p):
                              | TkTerminate
     """
     global activeWorld
-    global taskBool
-    global objectsInWorlds
-    global currentTask
     auxBool = False
-    attributesObjects = {}
 
-    if (p[1] == "pick"):
-
+    if p[1] == "pick":
         if activeWorld.isObject(p[2]):
-
             p[0] = Node("Pick", [p[2]])
-
         else:
             data_error = {
-                "type": "Objeto " + p[2] + " No existe en el mudno ",
+                "type": f"Object '{p[2]}' does not exist in the world",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
@@ -687,19 +570,17 @@ def p_primitiveInstructions(p):
             p[0] = Node("Drop", [p[2]])
         else:
             data_error = {
-                "type": "Objeto " + p[2] + " No existe en el mudno ",
+                "type": f"Object '{p[2]}' does not exist in the world",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
             errorSemantic(data_error)
     elif p[1] == "clear":
         if activeWorld.isBool(p[2]):
-            if p[1] == "clear":
-                p[0] = Node("Clear", [p[2]])
-
+            p[0] = Node("Clear", [p[2]])
         else:
             data_error = {
-                "type": "Booleano " + p[2] + " No existe en el mudno ",
+                "type": f"Boolean variable '{p[2]}' does not exist in the world",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
@@ -709,10 +590,11 @@ def p_primitiveInstructions(p):
             p[0] = Node("Flip", [p[2]])
         else:
             data_error = {
-                "type": "Booleano " + p[2] + " No existe en el mudno ",
+                "type": f"Boolean variable '{p[2]}' does not exist in the world",
                 "line": p.lineno(2),
                 "column": p.lexpos(2) + 1,
             }
+            errorSemantic(data_error)
     elif p[1] == "set":
         if activeWorld.isBool(p[2]):
             if len(p) == 5:
@@ -723,61 +605,28 @@ def p_primitiveInstructions(p):
                 p[0] = Node("SetBool", [p[2], auxBool])
             else:
                 p[0] = Node("SetTrue", [p[2]])
-        if len(p) == 3:
-            attributesObjects = {
-                "type": "Bool",
-                "line": p.lineno(2),
-                "column": p.lexpos(2) + 1,
-                "value": True,
-            }
-
-        elif len(p) == 5:
-            if p[4] == "true":
-                auxBool = True
-            elif p[4] == "false":
-                auxBool = False
-            attributesObjects = {
-                "type": "Bool",
-                "line": p.lineno(2),
-                "column": p.lexpos(2) + 1,
-                "value": auxBool,
-            }
-
-    if len(p) == 2:
+    elif len(p) == 2:
         if p[1] == 'move':
-
             p[0] = Node("Move", [p[1]])
         elif p[1] == "turn-left":
             p[0] = Node("TL", [p[1]])
-
         elif p[1] == "turn-right":
             p[0] = Node("TR", [p[1]])
-
-
         elif p[1] == "terminate":
-            data_error = {
-                "type": "Ha finalizado la corrida con exito",
-                "line": p.lineno(1),
-                "column": p.lexpos(1) + 1,
-            }
             p[0] = Node("Terminate", [p[1]])
-            # finish(data_error)
         else:
             p[0] = Node("MyInstruction", [p[1]])
-
 
 def p_booleanTests(p):
     """booleanTests : ids
                     | primitiveBoolean
                     | TkFound TkParenL ids TkParenR
                     | TkCarrying TkParenL ids TkParenR
-                    | conjuncionBool
-                    | disyuncionBool
-                    | negacionBool
+                    | conjunctionBool
+                    | disjunctionBool
+                    | negationBool
                     | TkParenL booleanTests TkParenR
                     """
-    global activeWorld
-    global currentTask
     if len(p) == 2:
         p[0] = Node("BooleanTest", [p[1]])
     elif len(p) == 5:
@@ -785,25 +634,24 @@ def p_booleanTests(p):
             p[0] = Node("Found", [p[3]])
         elif p[1] == "carrying":
             p[0] = Node("Carrying", [p[3]])
-
     elif len(p) == 4:
-        p[0] = Node("Parentesis", [p[2]])
+        p[0] = Node("Parenthesis", [p[2]])
 
+def p_disjunctionBool(p):
+    """disjunctionBool : booleanTests TkOr booleanTests"""
+    p[0] = Node("Disjunction", [p[1], p[3]])
 
-def p_disyuncionBool(p):
-    """disyuncionBool : booleanTests TkOr booleanTests"""
-    p[0] = Node("Disyuncion", [p[1], p[3]])
+def p_conjunctionBool(p):
+    """conjunctionBool : booleanTests TkAnd booleanTests"""
+    p[0] = Node("Conjunction", [p[1], p[3]])
 
-
-def p_conjuncionBool(p):
-    """conjuncionBool : booleanTests TkAnd booleanTests"""
-    p[0] = Node("Conjuncion", [p[1], p[3]])
-
-
-def p_negacionBool(p):
-    """negacionBool : TkNot booleanTests"""
-    p[0] = Node("Not", [p[2]])
-
+def p_negationBool(p):
+    """negationBool : TkNot booleanTests"""
+    # Optimization: Double Negation Elimination
+    if p[2].type == "Not":
+        p[0] = p[2].children[0]
+    else:
+        p[0] = Node("Not", [p[2]])
 
 def p_primitiveBoolean(p):
     """primitiveBoolean : TkFrontCl
@@ -817,7 +665,6 @@ def p_primitiveBoolean(p):
     p[0] = p[1]
     p.set_lineno(0, p.lineno(1))
 
-
 def p_instructions(p):
     """instructions : primitiveInstructions
                     | ifInstruction
@@ -826,43 +673,31 @@ def p_instructions(p):
                     | TkBegin multiInstructions TkEnd
                     | TkRepeat TkNum TkTimes instructions
                     | instructionDefineAs instructions
-
-                    """
-    global firstDefineOnTask
+    """
     if len(p) == 2:
         p[0] = Node("Instructions", [p[1]])
-
     elif len(p) == 3:
         p[0] = Node("Define As", [p[1], p[2]])
-        global defineAsBool
         attributesObjects = {
             "type": "Instruction",
             "line": p.lineno(1),
             "column": p.lineno(1) + 1,
         }
         stack.pop()
-        if firstDefineOnTask == False:
-            table = []
-            stack.push(table)
-            firstDefineOnTask = True
-
         stack.insert(p[1].children[0], attributesObjects)
-        defineAsBool = False
     elif len(p) == 4:
         p[0] = Node("Begin", [p[2]])
     elif len(p) == 5:
         if p[1] == "repeat":
             if p[2] <= 0:
-                int = p[2]
                 data_error = {
-                    "type": "Bad definition number of iteration for repeat - actual: " + int,
+                    "type": f"Bad number of iterations for repeat: {p[2]}",
                     "line": p.lineno(2),
                     "column": p.lexpos(2) + 1,
                 }
                 errorSemantic(data_error)
             else:
                 p[0] = Node("Repeat", [p[2], p[4]])
-
 
 def p_ifInstruction(p):
     """ ifInstruction : TkIf booleanTests TkThen instructions
@@ -873,31 +708,15 @@ def p_ifInstruction(p):
     else:
         p[0] = Node('ifCompound', [p[2], p[4], p[6]])
 
-
 def p_whileInst(p):
     """ whileInst : TkWhile booleanTests TkDo instructions
     """
     p[0] = Node('whileInst', [p[2], p[4]])
 
-
 def p_instructionDefineAs(p):
     """instructionDefineAs : TkDefine ids TkAs"""
     p[0] = Node("Define as", [p[2]])
-    global defineAsBool
-    defineAsBool = False
-
-    """ attributesObjects = {
-        "type" : "Instruction",
-        "line" : p.lineno(2),
-        "column" : p.lexpos(2) + 1,
-        } """
-    if defineAsBool:
-        defineAsBool = False
-    else:
-        table = []
-        stack.push(table)
-        defineAsBool = True
-
+    stack.push({})
 
 def p_directions(p):
     """directions : TkNorth
@@ -907,43 +726,26 @@ def p_directions(p):
     """
     p[0] = p[1]
 
-
 def p_empty(p):
     'empty :'
     pass
 
-
 def p_error(p):
     global ParserErrors
-
     if p is not None:
-        error = 'Error de sintaxis "' + str(p.value) + '" en fila ' \
-                + str(p.lineno)
+        error = f'Syntax error "{p.value}" at line {p.lineno}'
         ParserErrors.append(error)
-        print(ParserErrors)
+        print(ParserErrors, file=sys.stderr)
     else:
-        print("Syntax error at EOF")
-
-    sys.exit()
-
+        print("Syntax error at EOF", file=sys.stderr)
+    sys.exit(1)
 
 def errorSemantic(err):
     global ParserErrors
-
     if err is not None:
-        error = 'Error con "' + str(err["type"]) + '" en linea ' \
-                + str(err["line"])
+        error = f'Semantic error: {err["type"]} at line {err["line"]}'
         ParserErrors.append(error)
-        print(ParserErrors)
-
+        print(ParserErrors, file=sys.stderr)
     else:
-        print("Syntax error at EOF")
-
-    sys.exit()
-
-
-def finish(data):
-    if data is not None:
-        Message = "Programa finalizado con exito"
-        print(Message)
-    sys.exit()
+        print("Syntax error at EOF", file=sys.stderr)
+    sys.exit(1)

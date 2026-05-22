@@ -29,9 +29,9 @@ end-world
 
 begin-task pistear on mimundo
 
-  --En este programa willy demuestra su capacidad para seguir
-  --instrucciones al seguir indicaciones en una pista para llegar
-  --al final
+  --In this program willy demonstrates its capacity to follow
+  --instructions by following directions on a track to reach
+  --the end
 
   define headNorth as while not looking-north do turn-left;
   define headEast as while not looking-east do turn-left;

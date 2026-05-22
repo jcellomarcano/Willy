@@ -126,7 +126,7 @@ begin-task prog1 on pathworld
 
     nextmove;
     while not found(final) do begin
-        -- visitado
+        -- visited
         if not found(manzana) then begin drop manzana; end
         else begin
           terminate;
@@ -155,7 +155,7 @@ begin-task prog2 on pathworld
 
     nextmove;
     while not found(final) do begin
-        -- visitado
+        -- visited
         if not found(manzana) then begin drop manzana; end
         else
           terminate;

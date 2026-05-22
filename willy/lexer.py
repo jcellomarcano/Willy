@@ -1,56 +1,42 @@
 #!/usr/bin/env python3
 """
-    Analizador Lexicografico del Lenguaje Willy
-    Primera fase del proyecto
-    Traductores e Interpretadores (CI-3725)
-    Maria Fernanda Magallanes (13-10787)
-    Jesus Marcano (12-10359)
-    E-M 2020
-
-    Aqui estan almacenados todos los Tokens que reconocemos en el programa.
-
-    dividodos en diferentes secciones:
-        Lista de Tokens, palabras reservadas, tokens del programa, tokens ignorados, reglase de tokens y simbolos
+    Lexical Analyzer for the Willy* Language
 """
 
 from ply import lex
-from sys import argv
-import os,sys
 
-# AQUI SOLO SE HARA EL AREA DE INPUT PARA EL LEXER, LO QUE TENGA QUE VER CON EL READ ARCHIVO O UN MENU PARA EL USUARIO #
-
+# Collection of invalid tokens encountered during lexing
+InvalidTokens = []
 
 # Reserved Words
-
 tokens = [
-             'TkBeginWorld',
-             'TkEndWorld',
-             'TkObjType',
-             'TkTurnL',
-             'TkTurnR',
-             'TkFrontCl',
-             'TkLeftCl',
-             'TkRightCl',
-             'TkLookingN',
-             'TkLookingE',
-             'TkLookingS',
-             'TkLookingW',
-             'TkFinalG',
-             'TkBeginTask',
-             'TkEndTask',
+    'TkBeginWorld',
+    'TkEndWorld',
+    'TkObjType',
+    'TkTurnL',
+    'TkTurnR',
+    'TkFrontCl',
+    'TkLeftCl',
+    'TkRightCl',
+    'TkLookingN',
+    'TkLookingE',
+    'TkLookingS',
+    'TkLookingW',
+    'TkFinalG',
+    'TkBeginTask',
+    'TkEndTask',
 
-             # Simbolos utilizados para denotar separadores
-             'TkSemicolon',
-             'TkTab',
-             'TkId',
-             'TkNum',
-             'TkParenL',
-             'TkParenR',
+    # Separators and identifiers
+    'TkSemicolon',
+    'TkTab',
+    'TkId',
+    'TkNum',
+    'TkParenL',
+    'TkParenR',
 ]
 
 reserved = {
-    # Wily's Words / functions
-
+    # Willy's Words / functions
     'World': 'TkWorld',
     'Wall': 'TkWall',
     'Place': 'TkPlace',
@@ -59,8 +45,7 @@ reserved = {
     'Boolean': 'TkBoolean',
     'Goal': 'TkGoal',
 
-
-    # Common Words - Oper - Used on previous words to build a instruction
+    # Common Words / Operators
     'from': 'TkFrom',
     'to': 'TkTo',
     'of': 'TkOf',
@@ -74,9 +59,8 @@ reserved = {
     'initial': 'TkInitial',
     'value': 'TkValue',
     'capacity': 'TkCapacity',
-    'basket':'TkBasketLower',
+    'basket': 'TkBasketLower',
     'objects': 'TkObjectsLower',
- 
 
     # Colors
     'red': 'TkRed',
@@ -92,7 +76,6 @@ reserved = {
     'south': 'TkSouth',
     'west': 'TkWest',
 
-
     # Conditionals
     'if': 'TkIf',
     'else': 'TkElse',
@@ -103,10 +86,10 @@ reserved = {
     'while': 'TkWhile',
     'times': 'TkTimes',
 
-    # Aux
+    # Auxiliaries
     'define': 'TkDefine',
     'as': 'TkAs',
-    'do' : 'TkDo',
+    'do': 'TkDo',
 
     # Willy's Actions
     'willy': 'TkWilly',
@@ -120,7 +103,6 @@ reserved = {
     'found': 'TkFound',
     'carrying': 'TkCarrying',
 
-
     # Boolean Values
     'true': 'TkTrue',
     'false': 'TkFalse',
@@ -128,34 +110,25 @@ reserved = {
     'and': 'TkAnd',
     'not': 'TkNot',
 
-    #Other
+    # Blocks
     'begin': 'TkBegin',
     'end': 'TkEnd',
 }
 
-# Token's List
+# Add reserved words to the token list
 tokens += list(reserved.values())
 
-# Especificaciones de los tokens
+# Token rules
 t_TkSemicolon = r';'
+t_TkParenL = r'\('
+t_TkParenR = r'\)'
 
-t_TkParenL  = r'\('
-t_TkParenR  = r'\)'
-
-
-# Ignored Chars
+# Ignored characters
 t_ignore_TkCommentsBlock = r'{{(.|\n)[^{}]*}}'
 t_ignore_TkComments = r'[\-]{2}.*'
 t_ignore_TkSpace = r'\s'
 t_ignore_TkTab = r' \t'
 
-
-#ValidTokens = []  # Coleccion de tokens validos
-#InvalidTokens = []  # Coleccion de tokens invalidos
-
-# Prove of import Functions (This class is ony for tokens, don't declare functions here) - Main is Lexer
-
-# Funciones Regulares
 def t_TkBeginWorld(t):
     r'begin\-world'
     return t
@@ -202,7 +175,7 @@ def t_TkLookingS(t):
 
 def t_TkLookingW(t):
     r'looking\-west'
-    return t 
+    return t
 
 def t_TkFinalG(t):
     r'Final[\s]+goal'
@@ -220,23 +193,19 @@ def t_newLine(line):
     r'\n+'
     line.lexer.lineno += len(line.value)
 
+# Error handler for illegal characters
+def t_error(t):
+    """ Default error handler for invalid tokens """
+    error_msg = f'Illegal character "{t.value[0]}" at line {t.lineno}, column {t.lexpos + 1}'
+    InvalidTokens.append(error_msg)
+    t.lexer.skip(1)
 
-# Manejador de errores
-def t_error(invalido):
-    """ Funcion por "default" cuando encuentra un token que no pertenece a la lista de tokens """
-    error = 'Caracter ilegal "' + str(invalido.value[0]) + '" en fila ' \
-            + str(invalido.lineno) + ', columna ' + str(invalido.lexpos + 1)
-    InvalidTokens.append(error)
-    invalido.lexer.skip(1)
-
-def t_TkId(identificar):
+def t_TkId(t):
     r'[a-zA-Z]+[0-9]*[a-zA-Z_0-9]*'
-    identificar.type = reserved.get(identificar.value, 'TkId')
-    return identificar
+    t.type = reserved.get(t.value, 'TkId')
+    return t
 
 def t_TkNum(t):
     r'\d+'
     t.value = int(t.value)
     return t
-
-

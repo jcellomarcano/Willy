@@ -6,31 +6,31 @@ Object-type alo of color blue
 Boolean willyhappy with initial value true
 Boolean willycanlearn with initial value false
 end-world
-{{Definicion del mundo}}
---Holix
+{{Definition of the world}}
+--Hello
 begin-world world1
-{{mundo con 8 columas y 4 filas}}
+{{world with 8 columns and 8 rows}}
 World 8 8
 Basket of capacity 310
-{{paredes}}
+{{walls}}
 Wall north from 1 4 to 1 4
 Wall east from 1 2 to 6 2
 Wall south from 7 4 to 7 1
-{{objetos}}
+{{objects}}
 Object-type flower of color yellow
 Object-type mirror of color green
 Object-type table of color cyan
 Object-type umbrella of color magenta
 Object-type heart of color red
 Object-type sky of color blue
-{{Colocar objetos}}
+{{Place objects}}
 Place 3 of flower at 2 3
 Place 3 of flower at 8 4
 Place 5 of heart at 8 1
 Place 1 of sky1 at 1 1
 Place 10 of table in basket
 Place 300 of mirror in basket
-{{Inicio de Wally}}
+{{Start of Willy}}
 Start at 8 4 heading east
 
 Boolean willyhappy1 with initial value true

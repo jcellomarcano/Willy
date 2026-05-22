@@ -3,32 +3,32 @@ begin-world mentiravale
     Final goal is b
 end-world
 
--- debe pasar
+-- should pass
 begin-task prog5 on mentiravale
     set b;
 end-task
 
--- debe fallar
+-- should fail
 begin-task prog6 on mentiravale
     set b to false;
 end-task
 
--- debe pasar
+-- should pass
 begin-task prog7 on mentiravale
     set b to true;
 end-task
 
--- debe pasar
+-- should pass
 begin-task prog8 on mentiravale
     flip b;
 end-task
 
--- debe fallar
+-- should fail
 begin-task prog9 on mentiravale
     repeat 2 times flip b;
 end-task
 
--- debe fallar
+-- should fail
 begin-task prog10 on mentiravale
     clear b;
 end-task

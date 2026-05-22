@@ -28,7 +28,7 @@ end-world
 
 begin-task mitask on mimundo
 
-    --En este progrrama se probaran las funciones de willy.
+    --In this program the functions of willy will be tested.
 
     repeat 2 times move;
     turn-left;

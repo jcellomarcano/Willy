@@ -25,18 +25,18 @@ begin-task t1 on w2
 
 	if carrying(corneta) and (found(pelota) and looking-east) and front-clear then move;
 
-				-- se mueve hacia el norte
+				-- moves north
 	if found(corneta) then begin
 				turn-left;
 				move;
 			       end
-						-- se mueve hacia el sur
+						-- moves south
     		else 	if found(corneta) then begin
 						turn-left;
 						move;
 			       		       end
 
-						-- se mueve hacia al este
+						-- moves east
     		else 	if found(pelota) then begin
 					move;
 			       	end
