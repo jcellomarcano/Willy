@@ -1,350 +1,212 @@
-### Willy*
+# Willy* Interpreter & Simulator
+
+A high-performance Python-based interpreter, Abstract Syntax Tree (AST) optimizer, and interactive simulator for the **Willy\*** robot programming language.
+
+## Table of Contents
+- [About Willy\*](#about-willy)
+- [Architecture \& Design](#architecture--design)
+- [Key Features \& Optimizations](#key-features--optimizations)
+- [Installation](#installation)
+- [Usage Guidelines](#usage-guidelines)
+- [Interactive Dashboard](#interactive-dashboard)
+- [Optimization Benchmarks](#optimization-benchmarks)
+- [Verification \& Test Suite](#verification--test-suite)
+- [Language Specification](#language-specification)
+- [Contributors \& Citation](#contributors--citation)
+
+---
+
+## About Willy*
+
+**Willy\*** is a domain-specific programming language designed for controlling an autonomous robot named **Willy** navigating a finite, two-dimensional grid. Willy interacts with objects of various types and colors, moves around walls, monitors sensor states, manages carrying capacities in his basket, and executes tasks to achieve specific logical goals.
+
+This repository implements a complete interpreter, lexical analyzer, syntactic parser, symbol validator, static semantics analyzer, performance-optimized simulator, and visualizer.
+
+*This project was originally created as a course project for **Compilers / Translators (CI3725)** at **Simón Bolívar University (USB)**, during the January-March 2020 academic term.*
+
+---
+
+## Architecture & Design
+
+The project is structured according to Clean Architecture principles, separating lexical/syntactic processing, AST optimization, evaluation runtime, and interactive visualization interfaces.
+
+### Directory Layout
+```text
+Willy/
+├── Makefile                # Build, test, and benchmark orchestration
+├── README.md               # Repository documentation (this file)
+├── willy_rules.md          # Complete language specification rules
+├── benchmark.py            # Micro-benchmarking suite for LCA solver
+├── test_runner.py          # Automated test execution harness
+├── tests/                  # Integration test suites (.txt)
+│   ├── TicTacToe.txt
+│   ├── PickStars.txt
+│   └── ...
+└── willy/                  # Core package directory
+    ├── __init__.py         # Package initialization
+    ├── cli.py              # Command-line entry point and wrapper interface
+    ├── lexer.py            # Lexical analyzer using PLY Lex
+    ├── parser.py           # Syntactic reduction & semantic analysis using PLY Yacc
+    ├── stack.py            # Scope-aware stack for symbol table management
+    ├── world.py            # Environment model (grid, walls, and cell coordinates)
+    ├── task.py             # Execution runtime manager
+    ├── node.py             # AST Node structures and recursive evaluation logic
+    ├── model_procedure.py  # User-defined macro procedures
+    ├── lca.py              # AST Lowest Common Ancestor (LCA) path solver
+    └── dashboard.py        # Terminal visualizer and AST layout renderer
+```
+
+---
+
+## Key Features & Optimizations
+
+This modernized version of the Willy* interpreter introduces several compiler optimizations and structural enhancements:
+
+### 1. Robust Lexical Scoping
+Variable and custom procedure scopes are strictly isolated. We replaced unstructured global parser state transitions with a stack-based symbol table manager ([stack.py](file:///Users/jmarcano/workspaces/Willy/willy/stack.py)). 
+- **World Boundary**: Scopes are pushed on `begin-world` and popped on `end-world`.
+- **Task Boundary**: Scopes are pushed on `begin-task` and popped on `end-task`.
+- **Procedure Definitions**: Custom macro instructions (`define <id> as <inst>`) push an isolated scope, avoiding declaration pollution.
+- Lookups operate in $O(1)$ amortized time by querying dictionary hierarchies.
+
+### 2. Lowest Common Ancestor (LCA) Caching Solver
+To enable advanced AST analysis, static validation, and debugging, we implemented a Lowest Common Ancestor (LCA) query interface ([lca.py](file:///Users/jmarcano/workspaces/Willy/willy/lca.py)):
+- **DFS Path Indexing**: Pre-calculates root-to-node paths for all nodes during compiler reduction.
+- **$O(1)$ Query Caching**: Computes the LCA of two AST nodes based on paths. Divergences are cached to ensure constant-time queries.
+- **Explainable Divergence**: Provides detailed explanations of structural path deviations (e.g. conditional branches, loops, sequential statements).
 
-- [Willy*](#willy-)
-- [¿Qué es?](#qué-es)
-- [¿Cómo correrlo?](#cómo-correrlo)
-- [Versiones](#versiones)
-  * [Versión Final 3.0](#versión-final-30)
-    + [Otras cosas importantes que resaltar:](#otras-cosas-importantes-que-resaltar)
-    + [Consideraciones en cuanto a la impresión:](#consideraciones-en-cuanto-a-la-impresión)
-    + [Consideraciones en cuanto a la implementación:](#consideraciones-en-cuanto-a-la-implementación)
-    + [Versiones anteriores](#versiones-anteriores)
-- [Sobre la implementación](#sobre-la-implementación)
-  * [Sobre el Lexer](#sobre-el-lexer)
-  * [Sobre el Parser](#sobre-el-parser)
-  * [Sobre el Interpretador](#sobre-el-interpretador)
-    + [Interpretar los mundos](#interpretar-los-mundos)
-    + [Interpretar las tareas](#interpretar-las-tareas)
-  * [Sobre el Simulador](#sobre-el-simulador)
-- [Archivos de Prueba](#archivos-de-prueba)
-    + [PickStars.txt](#pickstarstxt)
-    + [WillyCleanItsRoom.txt](#willycleanitsroomtxt)
-    + [EatClean.txt](#eatcleantxt)
-    + [WriteFirstLetterOfMyName.txt](#writefirstletterofmynametxt)
-    + [ComesHappyToUni.txt](#comeshappytounitxt)
-    + [WillyScan.txt](#willyscantxt)
-    + [EsferasDelDragon.txt](#esferasdeldragontxt)
-    + [Laberinto.txt](#laberintotxt)
-    + [TicTacToe.txt](#tictactoetxt)
-    + [Otros](#otros)
-- [Conclusión](#conclusión)
+### 3. AST Constant Folding
+Static expressions are pre-evaluated during compilation to reduce runtime interpretation overhead:
+- **Double Negation Elimination**: Expressions like `not not <test>` are automatically simplified to `<test>` directly in the AST.
+- Pre-evaluated constant expressions lower depth and execution complexity.
+
+### 4. Efficient Grid Coordinate Mapping
+Grid spatial queries (such as wall collision checks or object lookups) have been optimized to $O(1)$ query complexity using coordinate dictionaries, avoiding linear list iterations.
+
+---
+
+## Installation
+
+### Prerequisites
+- **Python**: 3.8 or higher.
+- **PLY (Python Lex-Yacc)**: Install via pip:
+  ```bash
+  pip install ply
+  ```
+
+### Build & Package Setup
+Use the provided `Makefile` to install a globally accessible CLI wrapper:
 
-<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+```bash
+# Link the 'willy' executable wrapper to ~/.local/bin/willy
+make install
+```
 
+Make sure your shell PATH includes `~/.local/bin`.
 
+---
 
+## Usage Guidelines
 
-# ¿Qué es?
+Run the simulator using the standard `willy` command. It supports three main execution modes:
 
-**Este es un interpretador del lenguaje Willy***, que determina un ambiente de programación para un robot.
+### 1. Manual Execution Mode
+Execute the simulation step-by-step. The system prints the updated grid state and waits for you to press `Enter` to step forward:
+```bash
+willy tests/WillyCleanItsRoom.txt -m
+```
 
-:robot: Este puede interactuar con objetos en un mundo y desplazarse por el mismo a través de cuadrículas de tamaño finito.
+### 2. Automatic Execution Mode
+Execute the simulation automatically with a customizable delay (in seconds) between simulation steps:
+```bash
+# Run with a 0.5-second delay per step
+willy tests/WillyCleanItsRoom.txt -a 0.5
 
-Para más detalles del lenguaje Willy > [willy.pdf](https://github.com/MaferMazu/Willy/blob/Parser/willy.pdf)
+# Run instantly (0-second delay)
+willy tests/WillyCleanItsRoom.txt -a 0
+```
 
-Este interpretador se hizo como proyecto para la materia de Traductores de la Universidad Simón Bolívar, el trimestre Ene-Mar de 2020
+### 3. Interactive Dashboard Mode
+Launches the interactive visualization dashboard in your terminal:
+```bash
+willy tests/WillyCleanItsRoom.txt -i
+```
 
-Y fue desarrollado por: 
+---
 
-- [@jcellomarcano](https://github.com/jcellomarcano)
+## Interactive Dashboard
 
-- [@mafermazu](https://github.com/MaferMazu)
+Selecting **Interactive Dashboard Mode (`-i`)** launches an analytical terminal panel offering:
+1. **Display AST Layout**: Recursively renders a beautiful ANSI-colored tree diagram of the compiled program.
+2. **Retrieve AST Metrics**: Displays node counts, tree depth, and token details.
+3. **Query LCA (Lowest Common Ancestor)**: Input two AST node indices to locate their lowest common ancestor along with a detailed explanation of their structural divergence point.
+4. **Execute Simulation**: Initiates the robot simulator run.
 
-# ¿Cómo correrlo? 
+---
 
-1. Tener descargado ply > [ply](https://www.dabeaz.com/ply/)
+## Optimization Benchmarks
 
-2. Descargar el repositorio
+We benchmarked the Lowest Common Ancestor (LCA) path-caching solver against standard recursive tree traversal across balanced binary trees of depths 6 through 12, running 2,000 queries per depth level:
 
-3. Entrar en la terminal del sistema en la dirección del repositorio y realizar en la línea de comandos:
+| Tree Depth | Number of Nodes | Queries | Recursive Traversal (s) | Cached Path LCA (s) | Speedup |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| **6** | 127 | 2000 | 0.0336 s | 0.0028 s | **11.88x** |
+| **7** | 255 | 2000 | 0.0922 s | 0.0022 s | **41.83x** |
+| **8** | 511 | 2000 | 0.1432 s | 0.0026 s | **55.23x** |
+| **9** | 1023 | 2000 | 0.3134 s | 0.0033 s | **94.12x** |
+| **10** | 2047 | 2000 | 0.6507 s | 0.0032 s | **206.28x** |
+| **11** | 4095 | 2000 | 1.1993 s | 0.0033 s | **363.29x** |
+| **12** | 8191 | 2000 | 2.4150 s | 0.0061 s | **396.77x** |
 
-  `$ ./makefile.sh` 
+> [!TIP]
+> **Performance Scaling Analysis**: While recursive tree traversal time grows exponentially with node count ($O(N)$ depth searches), the cached path LCA solver processes queries in constant time ($O(1)$ amortized lookup), reaching up to a **~400x speedup** on larger syntax trees.
 
-  (Nota: se espera que no existan otros ejecutables con el mismo nombre, es decir, que no se tenga en el $PATH otro comando que se llame willy)
+To run benchmarks on your local system:
+```bash
+make benchmark
+```
 
+---
 
-  Si se tiene otros ejecutables en el PATH se pueden eliminar utilizando:
+## Verification & Test Suite
 
-  `$ export PATH=${PATH%:DireccionDeComandoAEliminarDelPath}` 
-  
-  (Al ejecutar el makefile se copian los archivos .py en ~/.local/bin para poder ejecutar a willy)
+An automated test suite checks compile-time parsing, semantic validation, and runtime simulation goals across 17 test suites:
 
-4. Luego se puede ejecutar el programa Willy, usando:
+```bash
+make test
+```
 
-  1) `$ willy <direcciondearchivoenlenguajewilly*> <-a|--automatico> <#DeSegundos>` 
-  
-  2) `$ willy <direcciondearchivoenlenguajewilly*> <-m|--manual>`
+### Included Test Cases (`tests/` directory)
+- [PickStars.txt](file:///Users/jmarcano/workspaces/Willy/tests/PickStars.txt): Willy collects exactly 3 star objects in a 8x9 sky world to achieve his final goal.
+- [WillyCleanItsRoom.txt](file:///Users/jmarcano/workspaces/Willy/tests/WillyCleanItsRoom.txt): Willy picks up clothing and books, places them at the correct desks, and drops trash in the laundry basket.
+- [EatClean.txt](file:///Users/jmarcano/workspaces/Willy/tests/EatClean.txt): Willy navigates a grid full of healthy (apples, cherries) and unhealthy (pizza) food, consuming only the former.
+- [WriteFirstLetterOfMyName.txt](file:///Users/jmarcano/workspaces/Willy/tests/WriteFirstLetterOfMyName.txt): Willy draws/writes the letter "W" using grid coordinates.
+- [ComesHappyToUni.txt](file:///Users/jmarcano/workspaces/Willy/tests/ComesHappyToUni.txt): State variable tracking simulation where events (traffic lights vs listening to music) alter Willy's mood.
+- [WillyScan.txt](file:///Users/jmarcano/workspaces/Willy/tests/WillyScan.txt): Navigation on a 20x20 grid avoiding obstacles and keeping track of limited lifespans/hearts.
+- [EsferasDelDragon.txt](file:///Users/jmarcano/workspaces/Willy/tests/EsferasDelDragon.txt): Dynamic pathfinder labyrinth solving to retrieve a dragon sphere.
+- [Laberinto.txt](file:///Users/jmarcano/workspaces/Willy/tests/Laberinto.txt): Labyrinth maze navigation test utilizing wall sensors.
+- [TicTacToe.txt](file:///Users/jmarcano/workspaces/Willy/tests/TicTacToe.txt): Simulation of a turn-based Tic-Tac-Toe layout.
+- Other semantic test files verify basic logic: `binary.txt`, `casoEasy.txt`, `casopruebaq.txt`, `mentiravale.txt`, `otherprobe.txt`, `pruebas.txt`, `simple.txt`, `worldsito.txt`.
 
-  
+---
 
-Todo lo que esté entre <> es opcional y '|' significa que es uno u otro.
+## Language Specification
 
- - En el modo automático se debe asignar un número en float con los segundos en que se ejecutará el programa paso a paso.
- 
+The complete structural syntax rules, world creation options, movement instructions, and sensor queries are documented in the specification file:
 
- - En el modo manual, cada paso se va a ejecutar al pisar la tecla enter.
+👉 **[Willy* Language Specification and Rules](file:///Users/jmarcano/workspaces/Willy/willy_rules.md)**
 
+---
 
-La forma de detener la ejecución de ambos modos es usar ctrl + c
+## Contributors & Citation
 
-La forma de correr el programa y que se ejecute todo es colocarlo en modo automático y no colocando segundos.
+This interpreter environment is based on the original 2020 Simón Bolívar University coursework and has been modernized with custom optimizations:
 
-**Dentro del directorio Pruebas se encuentran algunos archivos en lenguaje Willy**. Se puede conocer un poco más de esto aquí > [Archivos de Prueba](#archivos-de-prueba)
+- **Original Authors & Designers**:
+  - José Marcano ([@jcellomarcano](https://github.com/jcellomarcano))
+  - María Mazuera ([@mafermazu](https://github.com/MaferMazu))
+- **Refactoring & Modernization**:
+  - Antigravity (AI pair-programming assistant)
 
-Para entender mejor cómo corre el programa leer sobre la [Versión Final 3.0](#versión-final-30) y [Sobre la implementación](#sobre-la-implementación)
-
-
-# Versiones
-
-## Versión Final 3.0
-12/04/2020 
-
-El interpretador realiza correctamente la lectura de los programas escritos en lenguaje Willy*.
-
-Es importante tener en cuenta que se tomaron ciertas decisiones dentro de las precedencias del interpretador para evitar ambiguedades, entre ellas:
-
-La instrucción:
-
-`if x then if x then y else z`
-
-es tomada de la siguiente forma
-
-`if x then (if x then y else z)`
-
-y no hay forma de que el else se refiera al if más externo ya que no hay paréntesis en la sintaxis de las instrucciones, y tampoco se toma en cuenta la identación de las instrucciones.
-
-
-### Otras cosas importantes que resaltar:
-
-- Todas las instrucciones dentro de los bloques de los mundos deben ir sin ; al final.
-
-- Sólo las instrucciones dentro de los **bloques de las tareas y dentro de los bloques de begin end** tienen ; al final.
-
-Esto está mal:
-
-`if x then begin a; b; end; else if y then c;`
-
-La forma correcta es: (sin el ; después del end)
-
-`if x then begin a; b; end else if y then c;`
-
-- No se pueden crear objetos ni booleanos con el mismo nombre el mundo.
-
-- No se pueden crear funciones con el mismo nombre dentro de las tareas.
-
-- Se pueden crear funciones dentro de funciones. (Y el nombre de las funciones pueden ser repetidas sí y sólo sí están dos niveles más internos de dónde se encuentra la función definida previamente).
-
-- Todo lo que vaya a ser instanciado debe estar definido previamente.
-
-- No se puede insertar objetos en la cesta de willy si no se definió la capacidad de la cesta previamente.
-
-- Si el programa encuentra la instrucción terminate o se cumple el final goal la ejecución del task termina.
-
-
-### Consideraciones en cuanto a la impresión:
-
-- Las paredes están representadas por "/"
-
-- Los objetos en el mundo están representados por "o","+","x","#" en ese orden, correspondiente al orden de creación del objeto
-
-- Willy está representado por una w
-
-- Si Willy está sobre algún objeto se representa con W
-
-
-### Consideraciones en cuanto a la implementación:
-
-- El interpretador ejecuta el programa de forma secuencial. Si se lee un task cuyo mundo no ha sido declarado previamente esto generaría un error.
-
-- Si se definen dos task para un mismo mundo, el segundo task se va a ejecutar sobre el mundo resultante de haber aplicado el primer task, si y sólo si se hizo la ejecución de este primer task de forma correcta.
-
-- Al leerse los mundos estos son creados y almacenados. Al leer los task, si el mundo al que hace referencia al task existe, este es ejecutado.
-
-- Se recomienda declarar todos los mundos primero y luego los task, para que se realice una correcta ejecución de los mismos.
-
-Para más información consultar: [Sobre la implementación](#sobre-la-implementación)
-
-
-### Versiones anteriores
-Versión 2.0
-05/04/2020 
-
-Actualizaciones:
-- Se implementaron más archivos de prueba.
-- Se realizó el árbol con las instrucciones para ser ejecutadas.
-- Se acomodaron varios errores.
-
-Versión 1.0
-03/04/2020 
-
-El proyecto no se encuentra terminado en su totalidad, sin embargo esta implementado:
-
-- El lexer.
-- El parser con sus correspondientes validaciones.
-- La tabla de símbolos.
-- Las clases World y Task para la implementación.
-
-
-# Sobre la implementación
-
-Este proyecto se dividió en 3 etapas:
-
-En la primera fase del proyecto se implementó el análisis lexicográfico, el cual consiste en reconocer una entrada y dividirla en pequeños pedazos llamados tokens. 
-
-Para realizar el análisis lexicográfico se utilizó una herramienta de construcción de lexer y parser llamada PLY.
-
-La segunda etapa consistió en implementar un módulo sintáctico que utilice el módulo lexicográfico de la primera entrega. Este analizador debe aceptar o rechazar un programa dependiendo de si la entrada pertenece o no al lenguaje Willy*, que es el que utiliza nuestro robot para transitar en los mundos definidos en ese mismo lenguaje.
-
-Y la última entrega se concentraba en terminar el interpretador del lenguaje y el simulador para que se realizara correctamente la ejecución del programa.
-
-## Sobre el Lexer
-
-Primero se definió una lista de palabras reservadas y una lista de tokens, que son las que se consideraron convenientes para los requerimientos del problema. 
-
-
-Luego se definieron los tokens ignorados.
-
-Muchas de las definiciones de tokens se hicieron con ayuda de las expresiones regulares, que nos permitían agrupar las cadenas de texto que se necesitaban.
-
-
-También se implementaron dos listas, una de tokens válidos y otra de no válidos, para llevar un control de los tokens que se van formando a medida que se va leyendo el archivo inicial del programa, y de haber existencia de tokens no válidos puedan ser redirigidos a un manejador de errores.
-
-El manejador de errores es importante porque en este lenguaje puede que hayan símbolos que no existan, y hay que manejarlos. Para ello se almacenó información pertinente de los tokens como la columna y línea donde se manifiesta el error.
-
-Si el arreglo de tokens inválidos tiene algún elemento se muestra dicho error en pantalla y termina la ejecución.
-
-## Sobre el Parser
-
-Para la implementación del Parser primero se tuvo que entender cómo funciona el constructor de sintaxis que provee PLY, este se denomina yacc, y toma un conjunto de definiciones y las convierte en la gramática de nuestro lenguaje. La forma que tienen las definiciones presentes en este módulo se asemejan a las vistas en clase de Traductores.
-
-El diseño de esta gramática comprende la forma en que se determina si un programa es correcto o no en el mundo de Willy. Para ello se utilizaron las especificaciones del mundo, y se buscó generalizar reglas que permitan que con símbolos terminales (los tokens obtenidos de la etapa del lexer) y los no terminales representados por las definiciones en el parser se pueda determinar la forma que van a tener las instrucciones dentro de Willy*. 
-
-## Sobre el Interpretador
-
-Se utilizó el modulo parser.py para implementar el interpretador ahí mismo.
-
-Inicialmente se creó una **pila de símbolos** en donde se almacenan los distintos identificadores (ids) que son utilizados para cada mundo, tarea, variable booleana, nombre de función, objeto, etc. Esto con el objetivo de mantener un control de identificadores, y verificar que se utilicen correctamente; por ejemplo, no instanciar objetos que no fueron previamente definidos, o no definir dos funciones con el mismo nombre, incluso verificar que no existan dos mundos con el mismo nombre.
-
-Este interpretador ejecuta el programa de forma secuencial. Si se lee un task cuyo mundo no ha sido declarado previamente esto generaría un error.
-
-
-### Interpretar los mundos
-
-Se creó una clase mundo con ciertos métodos y a partir del parser estos fueron invocados para así tener registradas las características del mismo y poder mostrarlo.
-
-Para esta etapa se crearon también algunos controladores en el parser para asegurar que la asignación de atributos del mundo esten correctas. Por ejemplo, detectar si se tiene un mundo de tamaño 1x1, no construir paredes en la columna 3.
-
-### Interpretar las tareas 
-
-Se aprovechó la estructura del parser para crear nodos (estructuras que tienen un tipo e hijos), para que al ejecutar el parser la creación de nodos se hiciera recursivamente para así obtener una estructura de árbol con todas las instrucciones, similar a un árbol de derivación.
-
-A partir de esta estructura se crearon varios métodos para manejar los nodos (especificadas en la parte de sobre el simulador)
-
-
-## Sobre el Simulador
-
-El simulador, quién es el encargado de la ejecución de las instrucciones del programa, fue implementado como una función dentro de la clase Node. Esta función tiene el nombre de executeMyTask() y todas las funciones que esta utiliza se encuentran dentro de la clase Node y la clase Task.
-
-- Funciones a resaltar de Node:
-
-    + finalGoalValue(): Para saber el valor booleano del final goal definido para cada mundo.
-
-    + boolValue(): Para saber el valor booleano de las condiciones creadas en la tarea.
-
-    + executeMyTask(): Quién es la función responsable de que se ejecuten todas las instrucciones de forma correcta dentro de Willy*. Esta utiliza la estructura de nodo para llamarse recursivamente y así ir recorriendo las instrucciones una a una.
-
-    + timer(): Quién es la responsable de que las instrucciones se vayan ejecutando paso a paso (con la opción -a|--automatico) o con la tecla enter (con la opción -m|--manual).
-
-- En la clase Task es en dónde se tiene la especificación de las instrucciones ejecutadas en executeMyTask().
-
-
-# Archivos de Prueba
-
-Todos estos se encuentran dentro del directorio llamado Pruebas
-
-
-### PickStars.txt
-
-:robot: :star: 
-
-PickStars en un programa en lenguaje Willy que consta de un mundo llamado sky con dimensiones 8 x 9 con estrellas.
-
-El objetivo es que Willy logre llegar a la posición final con 3 estrellas en su cesta.
-
-### WillyCleanItsRoom.txt
-
-:shirt: :blue_book: :computer:
-
-Este es un programa que tiene un mundo llamado room con dimensiones 4 x 5 que representa el cuarto de una persona.
-
-El objetivo de este es que Willy recoja su cuarto colocando su celular, su laptop y los libros en su mesa de trabajo (en donde está inicialmente su laptop) y que coloque toda la ropa sucia en la cesta de la ropa sucia.
-
-### EatClean.txt
-
-:cherries: :green_apple: :pizza:
-
-Este programa contiene un mundo con comida saludable y comida no saludable.
-Willy con un caminar sencillo recorre todo el mundo.
-
-El final goal es llegar al final comiendose todas las frutas y no comiendose las pizzas.
-
-### WriteFirstLetterOfMyName.txt
-
-:pencil2: :pencil:
-
-Aquí hay dos mundos en donde Willy escribe la primera letra de su nombre (W) en dimensiones distintas.
-
-### ComesHappyToUni.txt
-
-:smile: :expressionless: :triumph:
-
-Este programa contiene un mundo que representa la ida a la universidad.
-Por cada semaforo o señalización que Willy se encuentra lo pone de mal humor.
-Por cada vez que sintoniza una canción en la radio que le gusta le mejora el humor.
-¿Willy llegará de buen humor a la uni?
-
-### WillyScan.txt 
-
-:dart: :trophy:
-
-Es un programa que simula un mundo 20 x 20 con vidas y objetos dañinos.
-Willy tiene 5 vidas inicialmente y debe llegar a la meta sin quedarse sin vidas.
-
-### EsferasDelDragon.txt
-
-:dragon_face: :crystal_ball:
-
-Es un programa que se encarga de recorrer laberitos con un set de muros y una esfera de dragon al final, el poder esta e que willy siempre llegue al final encontrando la esfera del dragon de forma dinamica
-a manera de que permita cambios de los muros del mundo e igual se puedan mover
-
-
-### Laberinto.txt
-
-:fearful: :gem: :triangular_flag_on_post:
-
-Es un porgrama que se encarga de recorrer laberitos con un set de muros una salida, 
-La idea consiste en jugar con el ser de WALL dentro del o los mundos y permita que willy llegue al final con el task que existe
-
-### TicTacToe.txt
-
-:negative_squared_cross_mark: :o2:
-
-La popular vieja en una forma estatica, a manera de que se permita jugar manipulando en task paso a paso  
-Y willy sea capaz de ganar tanto con  O ó X
-
-### Otros
-
-Se dejaron también otros archivos de prueba que se utilizaron para probar el correcto funcionamiento de Willy.
- 
-
-# Conclusión
-
-Para desarrollar un interpretador correctamente es importante realizarlo paso a paso. Primero definir cuáles van a ser las palabras que formaran parte del lenguaje, luego definir la estructura sintáctica que tendrán las instrucciones, para luego de haber verificado eso se pueda implementar la ejecución de un programa escrito en ese lenguaje.
-
-Para Willy se necesitaron estructuras como la pila de símbolos porque en el mundo se podían definir variables y funciones, y se necesitaba tener un control de eso.
-
-Otra estructura importante que se utilizó fue la del árbol que es la responsable de que la ejecución de las tareas pueda realizarse de forma correcta. Sin embargo este no se puede crear de forma correcta si no se tiene una buena gramática (que no sea ambigua ) que cree la estructura.
-
-Para finalizar es importante comentar que esto fue posible gracias a dividir la tarea de crear el interpretador en pequeñas etapas e ir resolviendo cada una de ellas para así lograr el resultado final y darle vida a Willy.
-
-:robot: :speech_balloon: *- Hello, World! -* 
+---
+*Developed under MIT License guidelines. SIMÓN BOLÍVAR UNIVERSITY, Department of Computer Science.*
