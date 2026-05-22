@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import time
 from willy.world import World
 from willy.task import Task
@@ -9,12 +10,12 @@ from willy.task import Task
 """
 
 class Node:
-    def __init__(self, type, children=None):
+    def __init__(self, type: str, children: list[Node | str | int | bool] | None = None):
         self.type = type
         self.children = children if children is not None else []
         self.index = None  # Sequential ID assigned dynamically during AST analysis
 
-    def assign_indices(self, start_index=1):
+    def assign_indices(self, start_index: int = 1) -> int:
         """ Recursively assign sequential integer indices to all Nodes in the AST """
         self.index = start_index
         current = start_index + 1
@@ -23,7 +24,7 @@ class Node:
                 current = child.assign_indices(current)
         return current
 
-    def __str__(self, level=0):
+    def __str__(self, level: int = 0) -> str:
         index_str = f"[{self.index}] " if self.index is not None else ""
         ret = "  " * level + index_str + self.type + "\n"
         for child in self.children:
@@ -34,80 +35,83 @@ class Node:
                 ret += " " + str(child) + "\n"
         return ret
 
-    def finalGoalToString(self):
-        ret = ""
-        if self.type == "Conjunction":
-            ret += self.children[0].finalGoalToString() + " and " + self.children[1].finalGoalToString()
-        elif self.type == "Disjunction":
-            ret += self.children[0].finalGoalToString() + " or " + self.children[1].finalGoalToString()
-        elif self.type == "Parenthesis":
-            ret += "(" + self.children[0].finalGoalToString() + ")"
-        elif self.type == "Not":
-            ret += "not " + self.children[0].finalGoalToString()
-        else:
-            for child in self.children:
-                if isinstance(child, Node):
-                    ret += child.finalGoalToString()
-                else:
-                    ret = ret.rstrip("\n")
-                    ret += str(child)
-        return ret
+    def finalGoalToString(self) -> str:
+        match self.type:
+            case "Conjunction":
+                return self.children[0].finalGoalToString() + " and " + self.children[1].finalGoalToString()
+            case "Disjunction":
+                return self.children[0].finalGoalToString() + " or " + self.children[1].finalGoalToString()
+            case "Parenthesis":
+                return "(" + self.children[0].finalGoalToString() + ")"
+            case "Not":
+                return "not " + self.children[0].finalGoalToString()
+            case _:
+                ret = ""
+                for child in self.children:
+                    if isinstance(child, Node):
+                        ret += child.finalGoalToString()
+                    else:
+                        ret = ret.rstrip("\n")
+                        ret += str(child)
+                return ret
 
-    def finalGoalValue(self, world, mybool):
-        if isinstance(world, World):
-            if self.type == "Conjunction":
+    def finalGoalValue(self, world: World, mybool: bool) -> bool:
+        if not isinstance(world, World):
+            return False
+        match self.type:
+            case "Conjunction":
                 left = self.children[0].finalGoalValue(world, mybool)
                 right = self.children[1].finalGoalValue(world, mybool)
                 mybool = mybool and (world.getValueGoals(left) and world.getValueGoals(right))
-            elif self.type == "Disjunction":
+            case "Disjunction":
                 left = self.children[0].finalGoalValue(world, mybool)
                 right = self.children[1].finalGoalValue(world, mybool)
                 mybool = mybool and (world.getValueGoals(left) or world.getValueGoals(right))
-            elif self.type == "Parenthesis":
+            case "Parenthesis":
                 u = self.children[0].finalGoalValue(world, mybool)
                 mybool = mybool and u
-            elif self.type == "Not":
+            case "Not":
                 u = self.children[0].finalGoalValue(world, mybool)
                 mybool = mybool and (not u)
-            else:
+            case _:
                 for child in self.children:
                     if isinstance(child, Node):
                         mybool = mybool and (child.finalGoalValue(world, mybool))
                     else:
                         mybool = mybool and world.getValueGoals(child)
-            return mybool
-        return False
+        return mybool
 
-    def boolValue(self, world, mybool):
-        if isinstance(world, World):
-            if self.type == "Conjunction":
+    def boolValue(self, world: World, mybool: bool) -> bool:
+        if not isinstance(world, World):
+            return False
+        match self.type:
+            case "Conjunction":
                 left = self.children[0].boolValue(world, mybool)
                 right = self.children[1].boolValue(world, mybool)
                 mybool = mybool and (world.getValueGoals(left) and world.getValueGoals(right))
-            elif self.type == "Disjunction":
+            case "Disjunction":
                 left = self.children[0].boolValue(world, mybool)
                 right = self.children[1].boolValue(world, mybool)
                 mybool = mybool and (world.getValueGoals(left) or world.getValueGoals(right))
-            elif self.type == "Parenthesis":
+            case "Parenthesis":
                 u = self.children[0].boolValue(world, mybool)
                 mybool = mybool and u
-            elif self.type == "Not":
+            case "Not":
                 u = self.children[0].boolValue(world, mybool)
                 mybool = mybool and (not u)
-            elif self.type == "Found":
+            case "Found":
                 mybool = mybool and world.isCellWithObject(world.getWillyPosition()[0], self.children[0])
-            elif self.type == "Carrying":
+            case "Carrying":
                 mybool = mybool and world.isObjectBasket(self.children[0])
-            else:
+            case _:
                 for child in self.children:
                     if isinstance(child, Node):
                         mybool = mybool and (child.boolValue(world, mybool))
                     else:
                         mybool = mybool and world.getValueBool(child)
-            return mybool
-        return False
+        return mybool
 
-    def timer(self, task):
+    def timer(self, task: Task) -> None:
         if task.time == "man":
             input('Let us wait for user input (Press Enter to continue)... \n')
             print("###############")
@@ -128,48 +132,51 @@ class Node:
             print("Final Goal Value: ", task.world.getValueFinalGoal())
             print(task.world)
 
-    def executeMyTask(self, task):
-        if isinstance(task, Task) and not task.fin:
-            if self.type == "Drop":
+    def executeMyTask(self, task: Task) -> None:
+        if not isinstance(task, Task) or task.fin:
+            return
+
+        match self.type:
+            case "Drop":
                 if task.world.isObjectBasket(self.children[0]) and task.world.isObject(self.children[0]):
                     if not task.dropObject(self.children[0]):
                         print("Cannot drop object:", self.children[0])
                 self.timer(task)
-            elif self.type == "Pick":
+            case "Pick":
                 if task.world.isCellWithObject(task.world.getWillyPosition()[0], self.children[0]) and task.world.isObject(self.children[0]):
                     if not task.pickObject(self.children[0]):
                         print("Cannot pick object:", self.children[0])
                 self.timer(task)
-            elif self.type == "Clear":
+            case "Clear":
                 if not task.world.changeBool(self.children[0], False):
                     print("Cannot clear boolean:", self.children[0])
                 self.timer(task)
-            elif self.type == "Flip":
+            case "Flip":
                 boolAux = task.world.getValueBool(self.children[0])
                 if not task.world.changeBool(self.children[0], not boolAux):
                     print("Cannot flip boolean:", self.children[0])
                 self.timer(task)
-            elif self.type == "SetBool":
+            case "SetBool":
                 if not task.world.changeBool(self.children[0], self.children[1]):
                     print("Cannot set boolean:", self.children[0])
                 self.timer(task)
-            elif self.type == "SetTrue":
+            case "SetTrue":
                 if not task.world.changeBool(self.children[0], True):
                     print("Cannot set boolean to true:", self.children[0])
                 self.timer(task)
-            elif self.type == "Move":
+            case "Move":
                 if not task.moveWilly():
                     print("Willy could not move. Current position:", task.world.getWillyPosition())
                 self.timer(task)
-            elif self.type == "TL":
+            case "TL":
                 if not task.turnWilly("left"):
                     print("Cannot turn left")
                 self.timer(task)
-            elif self.type == "TR":
+            case "TR":
                 if not task.turnWilly("right"):
                     print("Cannot turn right")
                 self.timer(task)
-            elif self.type == "Terminate":
+            case "Terminate":
                 print("###############")
                 print(f"Final state of '{task.world.id}' after executing task '{task.id}' (terminated):")
                 print(f"Willy Position: {task.world.getWillyPosition()[0]} looking {task.world.getWillyPosition()[1]}")
@@ -180,38 +187,38 @@ class Node:
                 print(task.world)
                 task.fin = True
                 self.timer(task)
-            elif self.type == "ifSimple":
+            case "ifSimple":
                 if self.children[0].boolValue(task.world, True):
                     self.children[1].executeMyTask(task)
                 self.timer(task)
-            elif self.type == "ifCompound":
+            case "ifCompound":
                 if self.children[0].boolValue(task.world, True):
                     self.children[1].executeMyTask(task)
                 else:
                     self.children[2].executeMyTask(task)
                 self.timer(task)
-            elif self.type == "whileInst":
+            case "whileInst":
                 while self.children[0].boolValue(task.world, True):
                     if task.fin:
                         break
                     self.children[1].executeMyTask(task)
                 self.timer(task)
-            elif self.type == "Define As":
+            case "Define As":
                 task.instructions.append([self.children[0].children[0], self.children[1]])
                 self.timer(task)
-            elif self.type == "Repeat":
+            case "Repeat":
                 for _ in range(0, self.children[0]):
                     if task.fin:
                         break
                     self.children[1].executeMyTask(task)
                 self.timer(task)
-            elif self.type == "MyInstruction":
+            case "MyInstruction":
                 if task.instructions:
                     for x in task.instructions:
                         if self.children[0] == x[0]:
                             x[1].executeMyTask(task)
                 self.timer(task)
-            else:
+            case _:
                 for child in self.children:
                     if isinstance(child, Node):
                         if child.type == "Terminate":

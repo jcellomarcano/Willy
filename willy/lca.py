@@ -6,13 +6,13 @@ Lowest Common Ancestor (LCA) Solver and Caching logic for Willy* AST.
 from willy.node import Node
 
 class LCASolver:
-    def __init__(self, root: Node):
+    def __init__(self, root: Node | None):
         self.root = root
-        self.paths = {}  # index -> list of Node objects from root to node
-        self.lca_cache = {}  # (index1, index2) -> (lca_node, explanation)
+        self.paths: dict[int, list[Node]] = {}  # index -> list of Node objects from root to node
+        self.lca_cache: dict[tuple[int, int], tuple[Node | None, str]] = {}  # (index1, index2) -> (lca_node, explanation)
         self.build_cache()
 
-    def _dfs_paths(self, node: Node, current_path: list):
+    def _dfs_paths(self, node: Node | None, current_path: list[Node]):
         if not isinstance(node, Node):
             return
         
@@ -30,7 +30,7 @@ class LCASolver:
         if self.root:
             self._dfs_paths(self.root, [])
 
-    def find_lca(self, index1: int, index2: int):
+    def find_lca(self, index1: int, index2: int) -> tuple[Node | None, str]:
         """
         Finds the LCA of two nodes by their indices.
         Returns a tuple of (lca_node, explanation).
@@ -64,7 +64,7 @@ class LCASolver:
         self.lca_cache[key] = (lca_node, explanation)
         return lca_node, explanation
 
-    def _explain_divergence(self, lca_node: Node, path1: list, path2: list) -> str:
+    def _explain_divergence(self, lca_node: Node, path1: list[Node], path2: list[Node]) -> str:
         """
         Explains why and where the path to the two nodes diverged.
         """
@@ -83,60 +83,55 @@ class LCASolver:
         if lca_idx_in_p2 + 1 < len(path2):
             child2 = path2[lca_idx_in_p2 + 1]
 
-        t = lca_node.type
-        
-        if t in ("Program Block:", "MultiInstruction", "Instructions", "Begin"):
-            return (f"Sequential execution divergence inside '{t}' block. "
-                    f"Node {path1[-1].index} is executed within branch/statement '{child1.type if child1 else 'None'}', "
-                    f"while Node {path2[-1].index} is executed in branch/statement '{child2.type if child2 else 'None'}'.")
-        
-        elif t == "ifCompound":
-            # An ifCompound typically has [condition, then_branch, else_branch]
-            # Check where child1 and child2 lie in the children list of lca_node
-            idx1 = lca_node.children.index(child1) if child1 in lca_node.children else -1
-            idx2 = lca_node.children.index(child2) if child2 in lca_node.children else -1
+        match lca_node.type:
+            case "Program Block:" | "MultiInstruction" | "Instructions" | "Begin":
+                return (f"Sequential execution divergence inside '{lca_node.type}' block. "
+                        f"Node {path1[-1].index} is executed within branch/statement '{child1.type if child1 else 'None'}', "
+                        f"while Node {path2[-1].index} is executed in branch/statement '{child2.type if child2 else 'None'}'.")
             
-            parts = {0: "Condition", 1: "Then-branch", 2: "Else-branch"}
-            part1 = parts.get(idx1, "Unknown-part")
-            part2 = parts.get(idx2, "Unknown-part")
-            
-            return (f"Conditional divergence inside 'if-then-else' block (Node {lca_node.index}). "
-                    f"Node {path1[-1].index} is under the {part1}, "
-                    f"and Node {path2[-1].index} is under the {part2}.")
+            case "ifCompound":
+                idx1 = lca_node.children.index(child1) if child1 in lca_node.children else -1
+                idx2 = lca_node.children.index(child2) if child2 in lca_node.children else -1
+                
+                parts = {0: "Condition", 1: "Then-branch", 2: "Else-branch"}
+                part1 = parts.get(idx1, "Unknown-part")
+                part2 = parts.get(idx2, "Unknown-part")
+                
+                return (f"Conditional divergence inside 'if-then-else' block (Node {lca_node.index}). "
+                        f"Node {path1[-1].index} is under the {part1}, "
+                        f"and Node {path2[-1].index} is under the {part2}.")
 
-        elif t == "ifSimple":
-            # An ifSimple typically has [condition, then_branch]
-            idx1 = lca_node.children.index(child1) if child1 in lca_node.children else -1
-            idx2 = lca_node.children.index(child2) if child2 in lca_node.children else -1
-            
-            parts = {0: "Condition", 1: "Then-branch"}
-            part1 = parts.get(idx1, "Unknown-part")
-            part2 = parts.get(idx2, "Unknown-part")
-            
-            return (f"Conditional divergence inside 'if-then' block (Node {lca_node.index}). "
-                    f"Node {path1[-1].index} is under the {part1}, "
-                    f"and Node {path2[-1].index} is under the {part2}.")
+            case "ifSimple":
+                idx1 = lca_node.children.index(child1) if child1 in lca_node.children else -1
+                idx2 = lca_node.children.index(child2) if child2 in lca_node.children else -1
+                
+                parts = {0: "Condition", 1: "Then-branch"}
+                part1 = parts.get(idx1, "Unknown-part")
+                part2 = parts.get(idx2, "Unknown-part")
+                
+                return (f"Conditional divergence inside 'if-then' block (Node {lca_node.index}). "
+                        f"Node {path1[-1].index} is under the {part1}, "
+                        f"and Node {path2[-1].index} is under the {part2}.")
 
-        elif t == "whileInst":
-            # whileInst typically has [condition, instructions]
-            idx1 = lca_node.children.index(child1) if child1 in lca_node.children else -1
-            idx2 = lca_node.children.index(child2) if child2 in lca_node.children else -1
-            
-            parts = {0: "Loop Condition", 1: "Loop Body"}
-            part1 = parts.get(idx1, "Unknown-part")
-            part2 = parts.get(idx2, "Unknown-part")
-            
-            return (f"Loop control divergence inside 'while' statement (Node {lca_node.index}). "
-                    f"Node {path1[-1].index} is under the {part1}, "
-                    f"and Node {path2[-1].index} is under the {part2}.")
+            case "whileInst":
+                idx1 = lca_node.children.index(child1) if child1 in lca_node.children else -1
+                idx2 = lca_node.children.index(child2) if child2 in lca_node.children else -1
+                
+                parts = {0: "Loop Condition", 1: "Loop Body"}
+                part1 = parts.get(idx1, "Unknown-part")
+                part2 = parts.get(idx2, "Unknown-part")
+                
+                return (f"Loop control divergence inside 'while' statement (Node {lca_node.index}). "
+                        f"Node {path1[-1].index} is under the {part1}, "
+                        f"and Node {path2[-1].index} is under the {part2}.")
 
-        elif t == "Repeat":
-            # Repeat typically has [count, instructions]
-            return (f"Loop body divergence inside 'repeat' statement (Node {lca_node.index}). "
-                    f"They diverged inside the repeated block execution.")
+            case "Repeat":
+                return (f"Loop body divergence inside 'repeat' statement (Node {lca_node.index}). "
+                        f"They diverged inside the repeated block execution.")
 
-        elif t == "Define As":
-            return (f"Divergence inside custom procedure definition '{lca_node.children[0].type if len(lca_node.children) > 0 else ''}' (Node {lca_node.index}).")
+            case "Define As":
+                return (f"Divergence inside custom procedure definition '{lca_node.children[0].type if len(lca_node.children) > 0 else ''}' (Node {lca_node.index}).")
 
-        return (f"Divergence at Node {lca_node.index} of type '{t}'. "
-                f"Paths parted into sub-nodes '{child1.type if child1 else 'None'}' and '{child2.type if child2 else 'None'}'.")
+            case _:
+                return (f"Divergence at Node {lca_node.index} of type '{lca_node.type}'. "
+                        f"Paths parted into sub-nodes '{child1.type if child1 else 'None'}' and '{child2.type if child2 else 'None'}'.")
