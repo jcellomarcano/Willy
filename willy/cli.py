@@ -29,7 +29,7 @@ def main():
         
     if len(args) == 0:
         try:
-            filepath = input('Archivo a Interpretar: ').strip()
+            filepath = input('File to interpret: ').strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting.")
             sys.exit(0)
@@ -47,16 +47,16 @@ def main():
                     try:
                         delay = float(args[2])
                         if delay < 0:
-                            print("La cantidad en segundos puede ser un entero o decimal mayor a 0", file=sys.stderr)
+                            print("The amount in seconds must be an integer or decimal greater than or equal to 0", file=sys.stderr)
                             sys.exit(1)
                     except ValueError:
-                        print("La cantidad en segundos puede ser un entero o decimal mayor a 0", file=sys.stderr)
+                        print("The amount in seconds must be an integer or decimal greater than or equal to 0", file=sys.stderr)
                         sys.exit(1)
                 else:
                     delay = 0.0
             else:
-                print("Uso del programa: willy <Nombre del archivo> <--manual|-m>")
-                print("Uso del programa: willy <Nombre del archivo> <--auto|-a> <un float que representa los seg>\n")
+                print("Usage: willy <filename> <--manual|-m>")
+                print("Usage: willy <filename> <--auto|-a> <float representing seconds>\n")
                 sys.exit(1)
 
     if not filepath:
@@ -67,7 +67,7 @@ def main():
         with open(filepath, 'r') as f:
             content = f.read()
     except FileNotFoundError:
-        print(f"Imposible abrir el archivo {filepath}")
+        print(f"Unable to open file {filepath}")
         sys.exit(1)
     except Exception as e:
         print(f"Error reading file {filepath}: {e}")

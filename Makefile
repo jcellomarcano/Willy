@@ -13,6 +13,7 @@ install:
 	@echo "Willy* wrapper installed to ~/.local/bin/willy"
 
 test:
+	python3 test_unit.py
 	python3 test_runner.py
 
 benchmark:
