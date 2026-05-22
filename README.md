@@ -4,6 +4,8 @@ A high-performance Python-based interpreter, Abstract Syntax Tree (AST) optimize
 
 ## Table of Contents
 - [About Willy\*](#about-willy)
+- [How the Project Works](#how-the-project-works)
+- [Writing and Using Willy\* Programs](#writing-and-using-willy-programs)
 - [Architecture \& Design](#architecture--design)
 - [Key Features \& Optimizations](#key-features--optimizations)
 - [Installation](#installation)
@@ -26,9 +28,90 @@ This repository implements a complete interpreter, lexical analyzer, syntactic p
 
 ---
 
+## How the Project Works
+
+The Willy* interpreter processes and simulates program execution through three distinct architectural phases:
+
+```mermaid
+graph TD
+    A[Willy* Source Code .txt] --> B[willy/lexer.py: Tokenizer]
+    B -->|Tokens| C[willy/parser.py: Syntactic Analyzer]
+    C -->|Scope Validation| D[willy/stack.py: Symbol Table Stack]
+    C -->|AST Nodes & Constant Folding| E[willy/node.py: Abstract Syntax Tree]
+    E -->|Simulator Evaluation| F[willy/world.py: Grid Environment]
+    F -->|Step/Interactive Output| G[Console / Dashboard]
+```
+
+1. **Lexical Analysis ([lexer.py](file:///Users/jmarcano/workspaces/Willy/willy/lexer.py))**:
+   Converts raw text streams into token sequences (such as block boundary markers, movement commands, identifiers, and numbers).
+2. **Syntactic and Semantic Analysis ([parser.py](file:///Users/jmarcano/workspaces/Willy/willy/parser.py))**:
+   Uses PLY Yacc to parse grammar structures. During syntactic reduction, it verifies variable declarations and scope hierarchies using a dictionary-backed scope stack ([stack.py](file:///Users/jmarcano/workspaces/Willy/willy/stack.py)). It also optimizes negation branches (Double Negation Elimination) and outputs a validated Abstract Syntax Tree (AST).
+3. **Execution Simulation ([world.py](file:///Users/jmarcano/workspaces/Willy/willy/world.py) & [node.py](file:///Users/jmarcano/workspaces/Willy/willy/node.py))**:
+   Instantiates the 2D grid environment representing coordinate states, obstacles, object placements, and Willy's state. The AST root initiates evaluation on the nodes recursively. The simulator monitors subgoal criteria and stops when the final goal evaluation yields `True` or a `terminate` command executes.
+
+---
+
+## Writing and Using Willy* Programs
+
+Every Willy* program is structured into a **World Definition** block followed by a **Task Definition** block.
+
+### Language Rules & Syntax
+For complete grammar structures, allowed operations, and sensory checks, refer to the [Willy* Language Specification and Rules](file:///Users/jmarcano/workspaces/Willy/willy_rules.md).
+
+### Example Program Code (`example.txt`)
+```willy
+begin-world space_grid
+    # Define a 5 column x 5 row grid
+    World 5 5
+
+    # Define a wall on the north side of cell (2, 2)
+    Wall north from 2 2 to 2 2
+
+    # Define objects and place them
+    Object-type star of color yellow
+    Place 1 of star at 3 3
+    
+    # Configure Willy starting parameters
+    Start at 1 1 heading east
+    Basket of capacity 2
+
+    # Define subgoals
+    Goal reached_target is willy is at 4 4
+    Goal picked_star is 1 star objects in basket
+
+    # The program succeeds if Willy gets the star AND reaches (4, 4)
+    Final goal is reached_target and picked_star
+end-world
+
+begin-task clean_run on space_grid
+    # Define a macro instruction to move twice
+    define move_twice as
+    begin
+        move;
+        move;
+    end
+
+    # Program starts here:
+    move_twice;    # Willy is now at (3, 1)
+    turn-left;     # Turn left (facing north)
+    move_twice;    # Willy is now at (3, 3)
+
+    # Pick up the star object
+    if found(star) then
+        pick star;
+
+    turn-right;    # Turn right (facing east)
+    move;          # Willy is now at (4, 3)
+    turn-left;     # Turn left (facing north)
+    move;          # Willy is now at (4, 4)
+end-task
+```
+
+---
+
 ## Architecture & Design
 
-The project is structured according to Clean Architecture principles, separating lexical/syntactic processing, AST optimization, evaluation runtime, and interactive visualization interfaces.
+The project follows clean architectural principles, modularizing lexicographical analysis, syntactic reduction, AST node evaluation, and terminal visualization.
 
 ### Directory Layout
 ```text
