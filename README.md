@@ -203,8 +203,8 @@ The complete structural syntax rules, world creation options, movement instructi
 This interpreter environment is based on the original 2020 Simón Bolívar University coursework and has been modernized with custom optimizations:
 
 - **Original Authors & Designers**:
-  - José Marcano ([@jcellomarcano](https://github.com/jcellomarcano))
-  - María Mazuera ([@mafermazu](https://github.com/MaferMazu))
+  - Jesús Marcano ([@jcellomarcano](https://github.com/jcellomarcano))
+  - María Magallanes ([@mafermazu](https://github.com/MaferMazu))
 - **Refactoring & Modernization**:
   - Antigravity (AI pair-programming assistant)
 
